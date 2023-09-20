@@ -72,7 +72,7 @@ case $choice in
   2)
       mkdir "certs"
       openssl ecparam -genkey -name prime256v1 -out /root/certs/key.key
-      openssl req -new -x509 -days 36500 -key /root/certs/ca.key -out /root/certs/key.crt  -subj "/CN=bing.com"
+      openssl req -new -x509 -days 36500 -key /root/certs/key.key -out /root/certs/key.crt  -subj "/CN=bing.com"
 ;;
   3)
     echo -e "1) Pre-release Version "
@@ -185,8 +185,7 @@ EOF
 
 elif [ "$webServer" == "n" ]; then
     read -p "Please enter your Domain: " domain
-    read -p "Please enter your Email: " email
-    apt install nginx nginx-doc nginx-utils
+    apt install nginx nginx-doc
     systemctl reload nginx
     systemctl status nginx
     ufw disable

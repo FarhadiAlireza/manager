@@ -14,7 +14,11 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
+read -p "Would You like to Update and Upgrade server? (y/n)" up
+if [ $up == 'y' ]; then
 apt update && apt upgrade -y
+else ( echo "OK" )
+fi
 
 read_input() {
     read -p "$1: " input
@@ -97,6 +101,9 @@ case $choice in
   4)
     wget https://raw.githubusercontent.com/pimlie/ubuntu-mainline-kernel.sh/master/ubuntu-mainline-kernel.sh &&
     install ubuntu-mainline-kernel.sh /usr/local/bin/
+	chmod +x ubuntu-mainline-kernel.sh
+	./ubuntu-mainline-kernel -i
+	./ubuntu-mainline-kernel -c
     echo -e "https://kernel.ubuntu.com/~kernel-ppa/mainline/"
    ;;
  5)
@@ -162,45 +169,47 @@ case $choice in
     a2dissite 000-default.conf
     systemctl reload apache2
     ufw disable
-    mkdir /var/www/html/"$domain"
-    mkdir /var/www/html/"$domain"/public_html
-    mkdir /var/www/html/"$domain"/backups
-    touch /etc/apache2/sites-available/"$domain".conf
+    mkdir /var/www/html/$domain
+    mkdir /var/www/html/$domain/public_html
+    mkdir /var/www/html/$domain/backups
+	mkdir /var/www/html/$domain/logs
+    touch /etc/apache2/sites-available/$domain.conf
      str=$(cat <<EOF
       <VirtualHost *:80>
-          ServerAdmin "$email"
-          ServerName "$domain"
-          ServerAlias www."$domain"
-          DocumentRoot /var/www/html/"$domain"/public_html/
-          ErrorLog /var/www/html/"$domain"/logs/error.log
-          CustomLog /var/www/html/"$domain"/logs/access.log combined
+          ServerAdmin $email
+          ServerName $domain
+          ServerAlias www.$domain
+          DocumentRoot /var/www/html/$domain/public_html/
+          ErrorLog /var/www/html/$domain/logs/error.log
+          CustomLog /var/www/html/$domain/logs/access.log combined
       </VirtualHost>
 EOF
          )
-   echo "$str" > "$domain".conf
-   a2ensite "$domain"
+   echo "$str" >> $domain.conf
+   a2ensite $domain
    systemctl reload apache2
    apt install certbot python3-certbot-apache
-   certbot --apache -d "$domain"
+   certbot --apache -d $domain
 
 elif [ "$webServer" == "n" ]; then
     read -p "Please enter your Domain: " domain
     apt install nginx nginx-doc
     systemctl reload nginx
-    systemctl status nginx
+	nginx -t
     ufw disable
-    mkdir /var/www/html/"$domain"
-    mkdir /var/www/html/"$domain"/public_html
-    mkdir /var/www/html/"$domain"/backups
+    mkdir /var/www/html/$domain
+    mkdir /var/www/html/$domain/public_html
+    mkdir /var/www/html/$domain/backups
+	mkdir /var/www/html/$domain/logs
     touch /etc/nginx/sites-available/"$domain".conf
-    apt install certbot python3-certbot-nginx
-    certbot --nginx -d "$domain"
      str=$(cat <<EOF
 server {
-    server_name "$domain";
-    root /var/www/html/"$domain"/public_html;
-    access_log /var/www/html/"$domain"/logs/access.log;
-    error_log /var/www/html/"$domain"/logs/error.log;
+    server_name $domain;
+    root /var/www/html/$domain/public_html;
+    access_log /var/www/html/$domain/logs/access.log;
+    error_log /var/www/html/$domain/logs/error.log;
+
+	index index.html index.htm index.nginx-debian.html;
 
     location / {
         # Your Nginx location directives go here if needed.
@@ -211,28 +220,21 @@ server {
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:/var/run/php/php7.4-fpm.sock; # Adjust to your PHP-FPM socket path.
     }
-    listen 443 ssl; # managed by Certbot
-    ssl_certificate /etc/letsencrypt/live/"$domain"/fullchain.pem; # managed by Certbot
-    ssl_certificate_key /etc/letsencrypt/live/"$domain"/privkey.pem; # managed by Certbot
-    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
 }
-server {
-    if ($host = "$domain") {
-        return 301 https://$host$request_uri;
-    } # managed by Certbot
-    listen 80;
-    server_name "$domain";
-    return 404; # managed by Certbot
-}
+	
 EOF
   )
-   echo "$str" > "$domain".conf
+   echo "$str" >> /etc/nginx/sites-available/"$domain".conf
+   sed -i "s|^root /var/www/html;|root /var/www/html/\$domain/public_html;|" /etc/nginx/sites-available/default
+   apt install certbot python3-certbot-nginx
+   ln -s "/etc/nginx/sites-available/$domain.conf" "/etc/nginx/sites-enabled/$domain.conf"
+   certbot --nginx -d $domain
    nginx -t
    systemctl reload nginx
-   ln -s /etc/nginx/sites-available/"$domain" /etc/nginx/sites-enabled/
    nginx -t
    systemctl reload nginx
+   systemctl status nginx
   fi
  ;;
 14)
